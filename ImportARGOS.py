@@ -13,10 +13,25 @@
 #Import modules
 import sys, os, arcpy 
 
+# Allow arcpy to overwrite outputs
+arcpy.env.overwriteOutput = True
+
 #Set input variables (Hard-wired)
 inputFile = 'V:/ARGOSTracking/Data/ARGOSData/1997dg.txt'
 outputFC = "V:/ARGOSTracking/Scratch/ARGOStrack.shp"
+outputSR = arcpy.SpatialReference(54002)
 
+# Create an empty feature class to which we'll add features
+outPath, outName = os.path.split(outputFC)
+arcpy.CreateFeatureclass_management(outPath, outName, "POINT",'','','', outputSR)
+
+# Add field to our new feature class
+arcpy.AddField_management(outputFC,"TagID","LONG")
+arcpy.AddField_management(outputFC,"LC","TEXT")
+arcpy.AddField_management(outputFC,"Date","DATE")
+
+# Create and Insert cursor
+cur = arcpy.da.InsertCursor(outputFC, ['Shape@', 'TagID', 'LC','Date'])
 #%% Constuct a while loop to iterate through all lines in the datafile
 #Open the ARGOS data file for reading
 inputFileObj = open(inputFile, 'r')
@@ -51,11 +66,34 @@ while lineString:
         obsLat = line2Data[2]
         obsLon = line2Data[5]
         
-        #print results to see how we're doing
-        print(tagID, "Lat:"+obsLat, "Long:"+obsLon, obsDate, obsTime, obsLC)
+        try:
+            
+            # Convert raw coordinate string to numbers
+            if obsLat[-1] == 'N':
+                obsLat = float(obsLat[:-1])
+            else:
+                obsLat = float(obsLat[:-1]) * -1
+            if obsLon[-1] == 'E':
+                obsLon = float(obsLon[:-1])
+            else:
+                obsLon = float(obsLon[:-1]) * -1
+            
+            # Create a point object
+            obsPoint = arcpy.Point()
+            obsPoint.X = obsLon
+            obsPoint.Y = obsLat
+                    
+        except Exception as e:
+            print(f"Error adding record {tagID} to the output")
+            
+        # Add a feature using our insert cursor
+        feature = cur.insertRow((obsPoint,tagID,obsLC,obsDate.replace(".","/") + " " + obsTime))
         
-    #move to next line so while loop progresses (even if doesnt contain "Date :")
+    # Move to the next line so the while loop progresses
     lineString = inputFileObj.readline()
     
-#close the file object
+#Close the file object
 inputFileObj.close()
+
+#Delete the cursor
+del cur

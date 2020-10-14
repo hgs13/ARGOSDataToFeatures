@@ -30,6 +30,9 @@ arcpy.AddField_management(outputFC,"TagID","LONG")
 arcpy.AddField_management(outputFC,"LC","TEXT")
 arcpy.AddField_management(outputFC,"Date","DATE")
 
+# Create and Insert cursor
+cur = arcpy.InsertCursor(outputFC)
+
 #%% Construct a while loop to iterate through all lines in the datafile
 # Open the ARGOS data file for reading
 inputFileObj = open(inputFile,'r')
@@ -62,8 +65,25 @@ while lineString:
         obsLat = line2Data[2]
         obsLon= line2Data[5]
         
-        # Print results to see how we're doing
-        print (tagID,obsDate,obsTime,obsLC,"Lat:"+obsLat,"Long:"+obsLon)
+        try:
+            
+            # Convert raw coordinate string to numbers
+            if obsLat[-1] == 'N':
+                obsLat = float(obsLat[:-1])
+            else:
+                obsLat = float(obsLat[:-1]) * -1
+            if obsLon[-1] == 'E':
+                obsLon = float(obsLon[:-1])
+            else:
+                obsLon = float(obsLon[:-1]) * -1
+                    
+        except Exception as e:
+            print(f"Error adding record {tagID} to the output")
+            
+            # Create a point object
+            obsPoint = arcpy.Point()
+            obsPoint.X = obsLon
+            obsPoint.Y = obsLat
         
     # Move to the next line so the while loop progresses
     lineString = inputFileObj.readline()
